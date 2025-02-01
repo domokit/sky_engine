@@ -58,6 +58,7 @@ namespace {
 #if FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG || \
     FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_PROFILE
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
 std::optional<GpuUsageInfo> FindGpuUsageInfo(io_iterator_t iterator) {
   for (fml::CFRef<io_registry_entry_t> reg_entry(IOIteratorNext(iterator)); reg_entry.Get();
        reg_entry.Reset(IOIteratorNext(iterator))) {
@@ -77,18 +78,22 @@ std::optional<GpuUsageInfo> FindGpuUsageInfo(io_iterator_t iterator) {
   }
   return std::nullopt;
 }
+#endif
 
 [[maybe_unused]] std::optional<GpuUsageInfo> FindSimulatorGpuUsageInfo() {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   io_iterator_t io_iterator;
   if (IOServiceGetMatchingServices(kIOMasterPortDefault, IOServiceNameMatching("IntelAccelerator"),
                                    &io_iterator) == kIOReturnSuccess) {
     fml::CFRef<io_iterator_t> iterator(io_iterator);
     return FindGpuUsageInfo(iterator.Get());
   }
+#endif
   return std::nullopt;
 }
 
 [[maybe_unused]] std::optional<GpuUsageInfo> FindDeviceGpuUsageInfo() {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   io_iterator_t io_iterator;
   if (IOServiceGetMatchingServices(kIOMasterPortDefault, IOServiceNameMatching("sgx"),
                                    &io_iterator) == kIOReturnSuccess) {
@@ -106,6 +111,7 @@ std::optional<GpuUsageInfo> FindGpuUsageInfo(io_iterator_t iterator) {
       }
     }
   }
+#endif
   return std::nullopt;
 }
 
@@ -119,6 +125,8 @@ std::optional<GpuUsageInfo> PollGpuUsage() {
 #elif TARGET_IPHONE_SIMULATOR
   return FindSimulatorGpuUsageInfo();
 #elif TARGET_OS_IOS
+  return FindDeviceGpuUsageInfo();
+#elif TARGET_OS_TV
   return FindDeviceGpuUsageInfo();
 #endif  // TARGET_IPHONE_SIMULATOR
 }
@@ -136,6 +144,8 @@ std::optional<CpuUsageInfo> ProfilerMetricsIOS::CpuUsage() {
   kernel_return_code =
       task_threads(mach_task_self(), &mach_threads.threads, &mach_threads.thread_count);
   if (kernel_return_code != KERN_SUCCESS) {
+    FML_LOG(ERROR) << "Error retrieving task information: "
+                   << mach_error_string(kernel_return_code);
     return std::nullopt;
   }
 
@@ -172,6 +182,8 @@ std::optional<CpuUsageInfo> ProfilerMetricsIOS::CpuUsage() {
         num_threads--;
         break;
       default:
+        FML_LOG(ERROR) << "Error retrieving thread information: "
+                       << mach_error_string(kernel_return_code);
         return std::nullopt;
     }
   }
@@ -190,6 +202,8 @@ std::optional<MemoryUsageInfo> ProfilerMetricsIOS::MemoryUsage() {
       task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&task_memory_info),
                 &task_memory_info_count);
   if (kernel_return_code != KERN_SUCCESS) {
+    FML_LOG(ERROR) << " Error retrieving task memory information: "
+                   << mach_error_string(kernel_return_code);
     return std::nullopt;
   }
 

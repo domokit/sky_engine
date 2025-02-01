@@ -19,7 +19,9 @@ FLUTTER_ASSERT_ARC
 
 namespace {
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
 constexpr char kTextPlainFormat[] = "text/plain";
+#endif
 const UInt32 kKeyPressClickSoundId = 1306;
 
 #if not APPLICATION_EXTENSION_API_ONLY
@@ -44,6 +46,7 @@ const char* const kOverlayStyleUpdateNotificationKey =
 
 using namespace flutter;
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
 static void SetStatusBarHiddenForSharedApplication(BOOL hidden) {
 #if not APPLICATION_EXTENSION_API_ONLY
   [UIApplication sharedApplication].statusBarHidden = hidden;
@@ -61,6 +64,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
   FML_LOG(WARNING) << "Application based status bar styling is not available in app extension.";
 #endif
 }
+#endif
 
 @interface FlutterPlatformPlugin ()
 
@@ -176,13 +180,16 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 }
 
 - (void)hideSystemContextMenu {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   if (@available(iOS 16.0, *)) {
     FlutterTextInputPlugin* textInputPlugin = [self.engine textInputPlugin];
     [textInputPlugin hideEditMenu];
   }
+#endif
 }
 
 - (void)showShareViewController:(NSString*)content {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   UIViewController* engineViewController = [self.engine viewController];
 
   NSArray* itemsToShare = @[ content ?: [NSNull null] ];
@@ -217,6 +224,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
   }
 
   [engineViewController presentViewController:activityViewController animated:YES completion:nil];
+#endif
 }
 
 - (void)searchWeb:(NSString*)searchTerm {
@@ -248,6 +256,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
     return;
   }
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   if ([@"HapticFeedbackType.lightImpact" isEqualToString:feedbackType]) {
     [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight] impactOccurred];
   } else if ([@"HapticFeedbackType.mediumImpact" isEqualToString:feedbackType]) {
@@ -257,11 +266,13 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
   } else if ([@"HapticFeedbackType.selectionClick" isEqualToString:feedbackType]) {
     [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
   }
+#endif
 }
 
 - (void)setSystemChromePreferredOrientations:(NSArray*)orientations {
   UIInterfaceOrientationMask mask = 0;
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   if (orientations.count == 0) {
     mask |= UIInterfaceOrientationMaskAll;
   } else {
@@ -277,6 +288,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
       }
     }
   }
+#endif
 
   if (!mask) {
     return;
@@ -292,6 +304,14 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 }
 
 - (void)setSystemChromeEnabledSystemUIOverlays:(NSArray*)overlays {
+  // Checks if the top status bar should be visible. This platform ignores all
+  // other overlays
+
+  // We opt out of view controller based status bar visibility since we want
+  // to be able to modify this on the fly. The key used is
+  // UIViewControllerBasedStatusBarAppearance
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+  [UIApplication sharedApplication].statusBarHidden =
   BOOL statusBarShouldBeHidden = ![overlays containsObject:@"SystemUiOverlay.top"];
   if ([overlays containsObject:@"SystemUiOverlay.bottom"]) {
     [[NSNotificationCenter defaultCenter]
@@ -313,12 +333,16 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
     // UIViewControllerBasedStatusBarAppearance.
     SetStatusBarHiddenForSharedApplication(statusBarShouldBeHidden);
   }
+ #endif 
 }
+
 
 - (void)setSystemChromeEnabledSystemUIMode:(NSString*)mode {
   BOOL edgeToEdge = [mode isEqualToString:@"SystemUiMode.edgeToEdge"];
   if (self.enableViewControllerBasedStatusBarAppearance) {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
     [self.engine viewController].prefersStatusBarHidden = !edgeToEdge;
+#endif
   } else {
     // Checks if the top status bar should be visible, reflected by edge to edge setting. This
     // platform ignores all other system ui modes.
@@ -326,7 +350,9 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
     // We opt out of view controller based status bar visibility since we want
     // to be able to modify this on the fly. The key used is
     // UIViewControllerBasedStatusBarAppearance.
+  #if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
     SetStatusBarHiddenForSharedApplication(!edgeToEdge);
+  #endif   
   }
   [[NSNotificationCenter defaultCenter]
       postNotificationName:edgeToEdge ? FlutterViewControllerShowHomeIndicator
@@ -344,6 +370,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
     return;
   }
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   UIStatusBarStyle statusBarStyle;
   if ([brightness isEqualToString:@"Brightness.dark"]) {
     statusBarStyle = UIStatusBarStyleLightContent;
@@ -366,6 +393,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
   } else {
     SetStatusBarStyleForSharedApplication(statusBarStyle);
   }
+#endif  
 }
 
 - (void)popSystemNavigator:(BOOL)isAnimated {
@@ -399,16 +427,19 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 }
 
 - (NSDictionary*)getClipboardData:(NSString*)format {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   UIPasteboard* pasteboard = [UIPasteboard generalPasteboard];
   if (!format || [format isEqualToString:@(kTextPlainFormat)]) {
     NSString* stringInPasteboard = pasteboard.string;
     // The pasteboard may contain an item but it may not be a string (an image for instance).
     return stringInPasteboard == nil ? nil : @{@"text" : stringInPasteboard};
   }
+#endif
   return nil;
 }
 
 - (void)setClipboardData:(NSDictionary*)data {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   UIPasteboard* pasteboard = [UIPasteboard generalPasteboard];
   id copyText = data[@"text"];
   if ([copyText isKindOfClass:[NSString class]]) {
@@ -416,10 +447,15 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
   } else {
     pasteboard.string = @"null";
   }
+#endif
 }
 
 - (NSDictionary*)clipboardHasStrings {
-  return @{@"value" : @([UIPasteboard generalPasteboard].hasStrings)};
+  bool hasStrings = false;
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+    hasStrings = [UIPasteboard generalPasteboard].hasStrings;
+#endif
+  return @{@"value" : @(hasStrings)};
 }
 
 - (BOOL)isLiveTextInputAvailable {
@@ -427,12 +463,14 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 }
 
 - (void)showLookUpViewController:(NSString*)term {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   UIViewController* engineViewController = [self.engine viewController];
   UIReferenceLibraryViewController* referenceLibraryViewController =
       [[UIReferenceLibraryViewController alloc] initWithTerm:term];
   [engineViewController presentViewController:referenceLibraryViewController
                                      animated:YES
                                    completion:nil];
+#endif
 }
 
 - (UITextField*)textField {
@@ -443,3 +481,5 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 }
 
 @end
+
+

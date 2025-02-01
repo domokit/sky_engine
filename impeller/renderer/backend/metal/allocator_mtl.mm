@@ -19,6 +19,7 @@ namespace impeller {
 static bool DeviceSupportsDeviceTransientTargets(id<MTLDevice> device) {
   // Refer to the "Memoryless render targets" feature in the table below:
   // https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   if (@available(ios 13.0, tvos 13.0, macos 10.15, *)) {
     return [device supportsFamily:MTLGPUFamilyApple2];
   } else {
@@ -34,21 +35,29 @@ static bool DeviceSupportsDeviceTransientTargets(id<MTLDevice> device) {
     return false;
 #endif
   }
+#else
+  return [device supportsFeatureSet:MTLFeatureSet_tvOS_GPUFamily1_v1];;
+#endif
   FML_UNREACHABLE();
 }
 
 static bool DeviceHasUnifiedMemoryArchitecture(id<MTLDevice> device) {
-  if (@available(ios 13.0, tvos 13.0, macOS 10.15, *)) {
-    return [device hasUnifiedMemory];
-  } else {
-#if FML_OS_IOS
-    // iOS devices where the availability check can fail always have had UMA.
-    return true;
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+    if (@available(ios 13.0, tvos 13.0, macOS 10.15, *)) {
+        return [device hasUnifiedMemory];
+    } else {
+    #if FML_OS_IOS
+        // iOS devices where the availability check can fail always have had UMA.
+        return true;
+    #else
+        // Mac devices where the availability check can fail have never had UMA.
+        return false;
+    #endif
+    }
 #else
-    // Mac devices where the availability check can fail have never had UMA.
-    return false;
+  return false;
 #endif
-  }
+ 
   FML_UNREACHABLE();
 }
 
@@ -59,27 +68,36 @@ ISize DeviceMaxTextureSizeSupported(id<MTLDevice> device) {
   // According to the feature set table, there are two supported max sizes :
   // 16384 and 8192 for devices flutter support. The former is used on macs and
   // latest ios devices. The latter is used on old ios devices.
-  if (@available(macOS 10.15, iOS 13, tvOS 13, *)) {
-    if ([device supportsFamily:MTLGPUFamilyApple3] ||
-        [device supportsFamily:MTLGPUFamilyMacCatalyst1] ||
-        [device supportsFamily:MTLGPUFamilyMac1]) {
-      return {16384, 16384};
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+    if (@available(macOS 10.15, iOS 13, tvOS 13, *)) {
+      if ([device supportsFamily:MTLGPUFamilyApple3] ||
+          [device supportsFamily:MTLGPUFamilyMacCatalyst1] ||
+          [device supportsFamily:MTLGPUFamilyMac1]) {
+        return {16384, 16384};
+      }
+      return {8192, 8192};
+    } else {
+    #if FML_OS_IOS
+        if ([device supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily4_v1] ||
+          [device supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily3_v1]) {
+            return {16384, 16384};
+        }
+    #endif
+    #if FML_OS_MACOSX
+        return {16384, 16384};
+    #endif
+        return {8192, 8192};
     }
-    return {8192, 8192};
-  } else {
-#if FML_OS_IOS
-    if ([device supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily4_v1] ||
-        [device supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily3_v1]) {
-      return {16384, 16384};
-    }
-#endif
-#if FML_OS_MACOSX
+#else
+  if ([device supportsFeatureSet:MTLFeatureSet_tvOS_GPUFamily2_v1])
     return {16384, 16384};
-#endif
+  else
     return {8192, 8192};
-  }
+#endif
+ 
 }
 
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
 static bool SupportsLossyTextureCompression(id<MTLDevice> device) {
 #ifdef FML_OS_IOS_SIMULATOR
   return false;
@@ -90,6 +108,7 @@ static bool SupportsLossyTextureCompression(id<MTLDevice> device) {
   return false;
 #endif
 }
+#endif
 
 void DebugAllocatorStats::Increment(size_t size) {
   size_.fetch_add(size, std::memory_order_relaxed);
@@ -219,14 +238,14 @@ std::shared_ptr<Texture> AllocatorMTL::OnCreateTexture(
 
   mtl_texture_desc.storageMode = ToMTLStorageMode(
       desc.storage_mode, supports_memoryless_targets_, supports_uma_);
-
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
   if (@available(macOS 12.5, ios 15.0, *)) {
     if (desc.compression_type == CompressionType::kLossy &&
         SupportsLossyTextureCompression(device_)) {
       mtl_texture_desc.compressionType = MTLTextureCompressionTypeLossy;
     }
   }
-
+#endif
 #ifdef IMPELLER_DEBUG
   if (desc.storage_mode != StorageMode::kDeviceTransient) {
     debug_allocater_->Increment(desc.GetByteSizeOfAllMipLevels());
